@@ -22,3 +22,4 @@ publishTo <<= (version) { version: String =>
 }
 
 publishMavenStyle := false
+

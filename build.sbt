@@ -4,7 +4,7 @@ name := "sbt-pit"
 
 organization := "org.pitest.sbt"
 
-version := "0.2-SNAPSHOT"
+version := "0.3"
 
 crossScalaVersions := Seq("2.9.2", "2.10.1")
 

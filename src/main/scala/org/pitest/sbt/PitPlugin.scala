@@ -1,25 +1,13 @@
 package org.pitest.sbt
 
+import scala.collection.JavaConverters._
 import sbt._
 import Keys._
 import java.io.File
 import inc.Locate
 import PitKeys._
-import org.pitest.mutationtest.ReportOptions
-import org.pitest.mutationtest.SettingsFactory
-import org.pitest.mutationtest.instrument.JarCreatingJarFinder
-import org.pitest.internal.ClassPathByteArraySource
-import org.pitest.mutationtest.instrument.KnownLocationJavaAgentFinder
-import org.pitest.mutationtest.CompoundListenerFactory
 import org.pitest.functional.FCollection
-import org.pitest.mutationtest.report.OutputFormat
-import org.pitest.coverage.execute.LaunchOptions
-import org.pitest.classinfo.CodeSource
-import org.pitest.mutationtest.Timings
-import org.pitest.coverage.DefaultCoverageGenerator
 import org.pitest.mutationtest.incremental.XStreamHistoryStore
-import org.pitest.mutationtest.MutationStrategies
-import org.pitest.mutationtest.MutationCoverage
 import java.io.IOException
 import java.net.URLDecoder
 import org.pitest.util.Glob
@@ -29,6 +17,10 @@ import java.util.Collection
 import java.util.ArrayList
 import org.pitest.mutationtest.config.ConfigOption
 import org.pitest.mutationtest.tooling.EntryPoint
+import org.pitest.classpath.ClassPathByteArraySource
+import org.pitest.mutationtest.config.ReportOptions
+import org.pitest.mutationtest.config.PluginServices
+import org.pitest.plugin.ClientClasspathPlugin
 
 
 object PitPlugin extends Plugin {
@@ -113,7 +105,7 @@ object PitPlugin extends Plugin {
     
     data.setMutationEngine(config.engine)
     data.setMutators(plainCollection(config.mutators))
-    data.addOutputFormats(plainCollection(config.outputFormats map (OutputFormat.valueOf(_))))
+    data.addOutputFormats(plainCollection(config.outputFormats))
     
     val conf = new TestGroupConfig(plainCollection(config.excludedGroups),plainCollection(config.includedGroups))
     data.setGroupConfig(conf)
@@ -129,19 +121,23 @@ object PitPlugin extends Plugin {
   def toGlob(s : String ) = new Glob(s)
   /**
    * The implicit conversion to collection is not enough - we need a plain
-   * old java collection class to satisify xstream
+   * old java collection class to satisfy xstream
    */
   def plainCollection [T](s : Seq[T]) : java.util.List[T] = {
     import scala.collection.JavaConversions._
     new ArrayList(s)
   }
 
-  private def makeClasspath(paths: org.pitest.sbt.PathSettings) = {
+  private def makeClasspath(paths: org.pitest.sbt.PathSettings) : Seq[String] = {
     val cp = paths.classPath.files map (f => f.getPath().trim())
-
-    val ownPath = classOf[ReportOptions].getProtectionDomain().getCodeSource().getLocation().getPath();
-    val decodedPath = URLDecoder.decode(ownPath, "UTF-8");
-    Seq(decodedPath) ++ cp
+    val services = PluginServices.findClientClasspathPlugins().asScala 
+    val pluginPaths = services map ( c => pathTo(c.getClass()) )
+    cp ++  pluginPaths.toSet
   }
+  
+  private def pathTo(c : Class[_] ) = {
+    val p = c.getProtectionDomain().getCodeSource().getLocation().getPath()
+    URLDecoder.decode(p, "UTF-8")
+  } 
 
 }

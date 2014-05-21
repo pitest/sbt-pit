@@ -12,7 +12,6 @@ import java.io.IOException
 import java.net.URLDecoder
 import org.pitest.util.Glob
 import org.pitest.mutationtest.config.ConfigurationFactory
-import org.pitest.testng.TestGroupConfig
 import java.util.Collection
 import java.util.ArrayList
 import org.pitest.mutationtest.config.ConfigOption
@@ -21,6 +20,8 @@ import org.pitest.classpath.ClassPathByteArraySource
 import org.pitest.mutationtest.config.ReportOptions
 import org.pitest.mutationtest.config.PluginServices
 import org.pitest.plugin.ClientClasspathPlugin
+import org.pitest.testapi.TestGroupConfig
+import org.pitest.util.IsolationUtils
 
 
 object PitPlugin extends Plugin {
@@ -65,9 +66,10 @@ object PitPlugin extends Plugin {
     Thread.currentThread().setContextClassLoader(PitPlugin.getClass.getClassLoader())
     
     try {
+      val ps = new PluginServices(IsolationUtils.getContextClassLoader())
       val pit = new EntryPoint
-      val data = makeReportOptions(options, conf, paths, filters, excludes)
-      val result = pit.execute( paths.baseDir, data)
+      val data = makeReportOptions(options, conf, paths, filters, excludes, ps)
+      val result = pit.execute( paths.baseDir, data, ps)
       
       if ( result.getError().hasSome() ) {
         result.getError().value().printStackTrace()
@@ -81,11 +83,16 @@ object PitPlugin extends Plugin {
 
   }
 
-  def makeReportOptions(options : Options, config : Configuration, paths: PathSettings, filters: FilterSettings, excludes: Excludes): ReportOptions = {
+  def makeReportOptions(options: Options, config: Configuration
+                       , paths: PathSettings
+                       , filters: FilterSettings
+                       , excludes: Excludes
+                       , ps: PluginServices): ReportOptions = {
+    
     val data = new ReportOptions
     data.setReportDir(paths.targetPath.getAbsolutePath())
-    data.setClassPathElements(plainCollection(makeClasspath(paths)))
-    data.setCodePaths(plainCollection (paths.mutatablePath map (p => p.getPath)) )
+    data.setClassPathElements(plainCollection(makeClasspath(paths, ps)))
+    data.setCodePaths(plainCollection(paths.mutatablePath map (p => p.getPath)))
     data.setTargetClasses(plainCollection(filters.targetClasses map toGlob))
     data.setTargetTests(plainCollection(filters.targetTests map toGlob))
     data.setDependencyAnalysisMaxDistance(filters.dependencyDistance)
@@ -102,18 +109,17 @@ object PitPlugin extends Plugin {
     data.setExcludedClasses(plainCollection(excludes.excludedClasses map toGlob))
     data.setExcludedMethods(plainCollection(excludes.excludedMethods map toGlob))
     data.setLoggingClasses(plainCollection(excludes.excludedMethods))
-    
+
     data.setMutationEngine(config.engine)
     data.setMutators(plainCollection(config.mutators))
     data.addOutputFormats(plainCollection(config.outputFormats))
-    
-    val conf = new TestGroupConfig(plainCollection(config.excludedGroups),plainCollection(config.includedGroups))
+
+    val conf = new TestGroupConfig(plainCollection(config.excludedGroups), plainCollection(config.includedGroups))
     data.setGroupConfig(conf)
-    
+
     val configFactory = new ConfigurationFactory(conf,
-        new ClassPathByteArraySource(data.getClassPath()));
+      new ClassPathByteArraySource(data.getClassPath()));
     data.setConfiguration(configFactory.createConfiguration())
-    
 
     data
   }
@@ -128,9 +134,9 @@ object PitPlugin extends Plugin {
     new ArrayList(s)
   }
 
-  private def makeClasspath(paths: org.pitest.sbt.PathSettings) : Seq[String] = {
+  private def makeClasspath(paths: org.pitest.sbt.PathSettings, ps : PluginServices ) : Seq[String] = {
     val cp = paths.classPath.files map (f => f.getPath().trim())
-    val services = PluginServices.findClientClasspathPlugins().asScala 
+    val services = ps.findClientClasspathPlugins().asScala 
     val pluginPaths = services map ( c => pathTo(c.getClass()) )
     cp ++  pluginPaths.toSet
   }

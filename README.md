@@ -3,9 +3,11 @@ sbt-pit
 
 sbt plugin for [pitest](http://pitest.org) mutation testing system
 
-**Please note that pit cannot currently (meaningfully) mutate scala . . . but I'm working on it**
+**Please note that pit cannot currently (meaningfully) mutate scala**
 
 This plugin can however be used for java projects built using sbt.
+
+sbt-pit is currently unmaintained and tied to an old version of pitest. If you would like to improve it please get in touch.
  
 ## Setup
 
